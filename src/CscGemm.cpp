@@ -3,10 +3,10 @@
 #include <algorithm>
 #include "CscGemm.hpp"
 
-int CscGemm(CscMatrix<double> A, CscMatrix<double> B, CscMatrix<double> & C)
+bool CscGemm(CscMatrix<double> A, CscMatrix<double> B, CscMatrix<double> & C)
 {   
     // Check A & B
-    if(A.cols != B.rows) return -1;
+    if(A.cols != B.rows) return false;
 
     C.rows = A.rows;
     C.cols = B.cols;
@@ -73,5 +73,5 @@ int CscGemm(CscMatrix<double> A, CscMatrix<double> B, CscMatrix<double> & C)
         }
     }
 
-    return 0;
+    return true;
 }

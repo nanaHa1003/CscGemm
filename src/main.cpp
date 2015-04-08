@@ -56,7 +56,7 @@ bool readMatrix(const char *filename, CscMatrix<real> &A)
     {
         if(colIdx != std::get<0>(tmp[i]))
         {
-            A.colPtr[++colPtr] = i;
+            A.colPtr[++colIdx] = i;
         }
         A.rowIdx[i] = std::get<1>(tmp[i]);
         A.values[i] = std::get<2>(tmp[i]);
@@ -87,9 +87,9 @@ bool checkResult(CscMatrix<real> &A, CscMatrix<real> &B, CscMatrix<real> &C)
 {
     if(C.rows != A.rows || C.cols != B.cols) return false;
 
-    auto dA = std::unique_ptr(cscToDense(A));
-    auto dB = std::unique_ptr(cscToDense(B));
-    auto dC = std::unique_ptr(cscToDense(C));
+    auto dA = std::unique_ptr<real>(cscToDense(A));
+    auto dB = std::unique_ptr<real>(cscToDense(B));
+    auto dC = std::unique_ptr<real>(cscToDense(C));
 
     for(int64_t j = 0; j < B.cols; ++j)
     {
@@ -111,7 +111,7 @@ int main(int argc, char **argv)
 
     CscMatrix<double> A, B, C;
 
-    if(!readMatrix(argc[1], A) || !readMatrix(argc[2], B))
+    if(!readMatrix(argv[1], A) || !readMatrix(argv[2], B))
     {
         return 0;
     }

@@ -9,7 +9,6 @@
   #include <CL/cl.h>
 #endif
 
-
-
+bool clCscGemm(CscMatrix<double> &A, CscMatrix<double> &B, CscMatrix<double> &C);
 
 #endif
