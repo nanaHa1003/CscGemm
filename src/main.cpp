@@ -102,7 +102,7 @@ bool checkResult(CscMatrix<real> &A, CscMatrix<real> &B, CscMatrix<real> &C)
         }
     }
 
-    return std::accumulate(dC.get(), dC.get() + C.rows * C.cols, 0) / (C.rows * C.cols) < 1e-12;
+    return std::accumulate(dC.get(), dC.get() + C.rows * C.cols, 0.0) / (C.rows * C.cols) < 1e-12;
 }
 
 int main(int argc, char **argv)
@@ -117,12 +117,12 @@ int main(int argc, char **argv)
     }
 
 #ifndef USE_OPENCL
-    CscGemm(A, B, C);
+    auto stat = CscGemm(A, B, C);
 #else
-    clCscGemm(A, B, C);
+    auto stat = clCscGemm(A, B, C);
 #endif
 
-    if(checkResult(A, B, C))
+    if(stat && checkResult(A, B, C))
     {
         std::cout << "Success" << std::endl;
     }

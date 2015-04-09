@@ -7,7 +7,11 @@
 bool CscGemm(CscMatrix<double> A, CscMatrix<double> B, CscMatrix<double> & C)
 {   
     // Check A & B
-    if(A.cols != B.rows) return false;
+    if(A.cols != B.rows)
+    {
+        std::cerr << "Please check matrix dimensions!!" << std::endl;
+        return false;
+    }
 
     C.rows = A.rows;
     C.cols = B.cols;
@@ -27,7 +31,7 @@ bool CscGemm(CscMatrix<double> A, CscMatrix<double> B, CscMatrix<double> & C)
                 cnnz[A.rowIdx[k]] = 1;
             }
         }
-        C.nnz += std::accumulate(cnnz, cnnz + C.cols, 0);
+        C.nnz += std::accumulate(cnnz, cnnz + C.rows, 0);
         C.colPtr[j + 1] = C.nnz;
     }
 
@@ -59,10 +63,6 @@ bool CscGemm(CscMatrix<double> A, CscMatrix<double> B, CscMatrix<double> & C)
     }
 
     delete[] cnnz;
-
-    printCscMatrix(A);
-    printCscMatrix(B);
-    printCscMatrix(C);
 
     // Fill values into C (non-block version)
     for(int64_t j = 0; j < B.cols; ++j)
