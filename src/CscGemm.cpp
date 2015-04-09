@@ -1,3 +1,4 @@
+#include <iostream>
 #include <cstring>
 #include <numeric>
 #include <algorithm>
@@ -14,15 +15,16 @@ bool CscGemm(CscMatrix<double> A, CscMatrix<double> B, CscMatrix<double> & C)
 
     // Scan A & B for number of non-zeros in C
     C.nnz = 0;
-    auto cnnz = new int64_t[C.cols];
+    auto cnnz = new int64_t[C.rows];
     for(int64_t j = 0; j < B.cols; ++j)
     {
         memset(cnnz, 0, sizeof(int64_t) * C.cols);
         for(int64_t i = B.colPtr[j]; i < B.colPtr[j + 1]; ++i)
         {
-            for(int64_t k = A.colPtr[i]; k < A.colPtr[i + 1]; ++k)
+            auto idx = B.rowIdx[i];
+            for(int64_t k = A.colPtr[idx]; k < A.colPtr[idx + 1]; ++k)
             {
-                cnnz[k] = 1;
+                cnnz[A.rowIdx[k]] = 1;
             }
         }
         C.nnz += std::accumulate(cnnz, cnnz + C.cols, 0);
@@ -39,35 +41,41 @@ bool CscGemm(CscMatrix<double> A, CscMatrix<double> B, CscMatrix<double> & C)
         memset(cnnz, 0, sizeof(int64_t) * C.cols);
         for(int64_t i = B.colPtr[j]; i < B.colPtr[j + 1]; ++i)
         {
-            for(int64_t k = A.colPtr[i]; k < A.colPtr[i + 1]; ++k)
+            auto idx = B.rowIdx[i];
+            for(int64_t k = A.colPtr[idx]; k < A.colPtr[idx + 1]; ++k)
             {
-                cnnz[k] = 1;
+                cnnz[A.rowIdx[k]] = 1;
             }
         }
 
         // Fill index in rowIdx
         auto first = C.colPtr[j];
         auto last  = C.colPtr[j + 1];
-        for(int64_t i = 0; i < C.cols; ++i)
+        for(int64_t i = 0; i < C.rows; ++i)
         {
-            if(cnnz[i]) C.rowIdx[first] = i;
-            if(++first == last) break;
+            if(cnnz[i]) C.rowIdx[first++] = i;
+            if(first == last) break;
         }
     }
 
-    delete [] cnnz;
+    delete[] cnnz;
+
+    printCscMatrix(A);
+    printCscMatrix(B);
+    printCscMatrix(C);
 
     // Fill values into C (non-block version)
     for(int64_t j = 0; j < B.cols; ++j)
     {
         for(int64_t i = B.colPtr[j]; i < B.colPtr[j + 1]; ++i)
         {
-            for(int64_t k = A.colPtr[i]; k < A.colPtr[i + 1]; ++k)
+            auto idx = B.rowIdx[i];
+            for(int64_t k = A.colPtr[idx]; k < A.colPtr[idx + 1]; ++k)
             {
                 // Find entry in C
                 auto first = C.colPtr[j];
                 auto last  = C.colPtr[j + 1];
-                auto index = std::lower_bound(C.rowIdx + first, C.rowIdx + last, k) - C.rowIdx;
+                auto index = std::lower_bound(C.rowIdx + first, C.rowIdx + last, A.rowIdx[k]) - C.rowIdx;
                 C.values[index] += B.values[i] * A.values[k];
             }
         }

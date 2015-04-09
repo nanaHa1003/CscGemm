@@ -14,4 +14,6 @@ public:
     real    *values;
 };
 
+void printCscMatrix(CscMatrix<double> &A);
+
 #endif

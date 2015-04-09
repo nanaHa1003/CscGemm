@@ -1,5 +1,5 @@
 CC = clang++
-CFLAGS = -std=c++11 -O3
+CFLAGS = -std=c++11 -O3 -g
 
 OPENCL      = -framework OpenCL
 OPENCL_PATH = /System/Library/Frameworks/OpenCL.framework/Versions/Current
