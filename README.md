@@ -1,6 +1,6 @@
 # 2015 NTU HSA Homework 2 #
-* Target
+* Description
     * Use OpenCL to accelerate CSC format matrix matrix multiplication.
 * Status
-    * CPU code done.
+    * C++ version done.
     * OpenCL code in progress.
