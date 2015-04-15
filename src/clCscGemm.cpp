@@ -127,7 +127,7 @@ bool clCscGemm(CscMatrix<double> &A, CscMatrix<double> &B, CscMatrix<double> &C)
     }
 
     // Create program
-    auto program = load_program(context, devices[0], "../src/clCscGemm.cl");
+    auto program = load_program(context, devices[0], "../src/CscGemm.cl");
     if(!program)
     {
         std::cerr << "Fail to build program\n";
@@ -136,21 +136,49 @@ bool clCscGemm(CscMatrix<double> &A, CscMatrix<double> &B, CscMatrix<double> &C)
         return false;
     }
 
+    // Create kernels
+    cl_int err[4];
+    auto setNonZero = clCreateKernel(program, "setNonZero", err + 0);
+    auto calNonZero = clCreateKernel(program, "calNonZero", err + 1);
+    auto lCountZero = clCreateKernel(program, "lCountZero", err + 2);
+    auto dCountZero = clCreateKernel(program, "dCountZero", err + 3);
+    #pragma unroll
+    for(int i = 0; i < 4; ++i)
+    {
+        if(err[i] == CL_INVALID_KERNEL_NAME)
+            std::cerr << "CL_INVALID_KERNEL_NAME\n";
+    }
+
     // Create buffer and copy A and B into it
     auto cl_A = clCreateMatrix(context, A);
     auto cl_B = clCreateMatrix(context, B);
 
-    // Here~
-    //
-    //
-    //
-    //
-    //
+    // Allocate C.colPtr on host & device
+    C.rows   = A.rows;
+    C.cols   = B.cols;
+    C.colPtr = new int64_t[C.cols + 1];
+
+    // Allocate device buffer
+    auto vecIdx = clCreateBuffer(context, CL_MEM_READ_WRITE,
+                                 sizeof(long) * A.rows, nullptr, nullptr);
+    
+    C.nnz = 0;
+    for(int64_t i = 0; i < B.cols; ++i)
+    {
+        clSetKernelArg(setNonZero, 0, sizeof(int64_t), B.colPtr[i]);
+        clSetKernelArg(setNonZero, 1, sizeof(int64_t), B.colPtr[i + 1]);
+        clSetKernelArg(setNonZero, 2, sizeof(cl_mem), cl_B.rowIdx);
+        clSetKernelArg(setNonZero, 3, sizeof(int64_t), A.rows);
+        clSetKernelArg(setNonZero, 4, sizeof(int64_t), A.cols);
+        clSetKernelArg(setNonZero, 5, sizeof(cl_mem), cl_A.colPtr);
+        clSetKernelArg(setNonZero, 6, sizeof(cl_mem), cl_A.rowIdx);
+        clSetKernelArg(setNonZero, 7, sizeof(cl_mem), vecIdx);
+
+
+    }
 
     // Start computing here
-    // 
-    C.rows = A.rows;
-    C.cols = B.cols;
+    
 
     // Here~
     //

@@ -3,31 +3,32 @@
  *
  */
 
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable
 #pragma OPENCL EXTENSION cl_khr_int64_base_atomics : enable
 
-__kernel void setNonZero(const cl_long beg,
-                         const cl_long end,
-                         __global const cl_long *idx,
-                         const cl_long rows,
-                         const cl_long cols,
-                         __global const cl_long *colPtr,
-                         __global const cl_long *rowIdx,
-                         __global cl_long *out)
+__kernel void setNonZero(const long beg,
+                         const long end,
+                         __global const long *idx,
+                         const long rows,
+                         const long cols,
+                         __global const long *colPtr,
+                         __global const long *rowIdx,
+                         __global long *out)
 {
     uint gBase = get_global_id(0);
     uint gSize = get_global_size(0);
 
     // Clear buffer
-    for(cl_long i = gBase; i < rows; i += gSize)
+    for(long i = gBase; i < rows; i += gSize)
     {
         out[i] = 0;
     }
 
     // Each work item pick one cloumn
-    for(cl_long i = beg + gBase; i < end + gBase; i += gSize)
+    for(long i = beg + gBase; i < end + gBase; i += gSize)
     {
-        cl_long col = idx[i];
-        for(cl_long j = colPtr[col]; j < colPtr[col + 1]; ++j)
+        long col = idx[i];
+        for(long j = colPtr[col]; j < colPtr[col + 1]; ++j)
         {
             // Do not have to consider data race
             out[rowIdx[j]] = 1;
@@ -35,59 +36,53 @@ __kernel void setNonZero(const cl_long beg,
     }
 }
 
-__kernel void calNonZero(const cl_long beg,
-                         const cl_long end,
-                         __global const cl_long *idx,
-                         __global const cl_double *val,
-                         const cl_long rows,
-                         const cl_long cols,
-                         __global const cl_long *colPtr,
-                         __global const cl_long *rowIdx,
-                         __global const cl_double *values,
-                         __global cl_double *out)
+__kernel void calNonZero(const long beg,
+                         const long end,
+                         __global const long *idx,
+                         __global const double *val,
+                         const long rows,
+                         const long cols,
+                         __global const long *colPtr,
+                         __global const long *rowIdx,
+                         __global const double *values,
+                         __global double *out)
 {
     uint gBase = get_global_id(0);
     uint gSize = get_global_size(0);
 
     // Clear buffer
-    for(cl_long i = gBase; i < rows; i += gSize)
+    for(long i = gBase; i < rows; i += gSize)
     {
         out[i] = 0;
     }
 
-    // Declare union for atom_cmpxchg
-    union { ulong *ip; cl_double *fp; } tp, op;
-    cl_double temp;
-    tp.fp = &temp;
-    op.fp = out;
-
-    for(cl_long i = beg + gBase; i < end + gBase; i += gSize)
+    for(long i = beg + gBase; i < end + gBase; i += gSize)
     {
-        cl_long col = idx[i];
-        for(cl_long j = colPtr[col]; j < colPtr[col + 1]; ++j)
+        long col = idx[i];
+        for(long j = colPtr[col]; j < colPtr[col + 1]; ++j)
         {
-            // Compute & Save into output using FMA & Atomic operation
-            temp = fma(val[i], values[j], out[rowIdx[j]]);
-            atom_cmpxchg(op.ip + rowIdx[j], *(tp.ip), *(tp.ip));
+            double temp = val[i] * values[j] + out[rowIdx[j]]; // Tried FMA, but failed
+            long   *arg = (long *) &temp;
+            atom_cmpxchg((__global long *)(out + rowIdx[j]), *arg, *arg);
         }
     }
 
 }
 
-__kernel void lCountZero(const cl_long n,
-                        __global const cl_long *vec,
-                        __local  cl_long *psum,
-                        __global cl_long *count)
+__kernel void lCountZero(const long n,
+                        __global const long *vec,
+                        __local  long *psum,
+                        __global long *count)
 {
     uint gBase = get_global_id(0);
     uint gSize = get_global_size(0);
 
-    for(cl_long i = gBase; i < n; i += gSize)
+    for(long i = gBase; i < n; i += gSize)
     {
         psum[gBase] += isequal(vec[i], 0.0);
     }
 
-    uint j = log2(gSize) + 1;
+    uint j = 65 - clz(gSize);
     uint k = gSize - 1;
     for(uint i = gBase; i < j; ++i)
     {
@@ -103,20 +98,20 @@ __kernel void lCountZero(const cl_long n,
     return;
 }
 
-__kernel void dCountZero(const cl_long n,
-                        __global const cl_double *vec,
-                        __local  cl_long *psum,
-                        __global cl_long *count)
+__kernel void dCountZero(const long n,
+                        __global const double *vec,
+                        __local  long *psum,
+                        __global long *count)
 {
     uint gBase = get_global_id(0);
     uint gSize = get_global_size(0);
 
-    for(cl_long i = gBase; i < n; i += gSize)
+    for(long i = gBase; i < n; i += gSize)
     {
         psum[gBase] += isequal(vec[i], 0.0);
     }
 
-    uint j = log2(gSize) + 1;
+    uint j = 65 - clz(gSize);
     uint k = gSize - 1;
     for(uint i = gBase; i < j; ++i)
     {
