@@ -6,6 +6,20 @@
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 #pragma OPENCL EXTENSION cl_khr_int64_base_atomics : enable
 
+static double atomicAdd(__global double const *addr, double val)
+{
+    __global long *laddr = (__global long *) addr;
+    long old = *laddr;
+    long assumed;
+    do{
+        assumed = old;
+        double tmp = val + *((double *) &assumed);
+        old = atom_cmpxchg(laddr, assumed, *((long *) &tmp));
+    }while(old != assumed);
+
+    return *((double *) &old);
+}
+
 __kernel void setNonZero(const long beg,
                          const long end,
                          __global const long *idx,
@@ -25,7 +39,7 @@ __kernel void setNonZero(const long beg,
     }
 
     // Each work item pick one cloumn
-    for(long i = beg + gBase; i < end + gBase; i += gSize)
+    for(long i = beg + gBase; i < end; i += gSize)
     {
         long col = idx[i];
         for(long j = colPtr[col]; j < colPtr[col + 1]; ++j)
@@ -53,49 +67,60 @@ __kernel void calNonZero(const long beg,
     // Clear buffer
     for(long i = gBase; i < rows; i += gSize)
     {
-        out[i] = 0;
+        out[i] = 0.0;
     }
 
-    for(long i = beg + gBase; i < end + gBase; i += gSize)
+    for(long i = beg + gBase; i < end; i += gSize)
     {
         long col = idx[i];
         for(long j = colPtr[col]; j < colPtr[col + 1]; ++j)
         {
-            double temp = val[i] * values[j] + out[rowIdx[j]]; // Tried FMA, but failed
-            long   *arg = (long *) &temp;
-            atom_cmpxchg((__global long *)(out + rowIdx[j]), *arg, *arg);
+            atomicAdd(out + rowIdx[j], val[i] * values[j]);
         }
     }
-
 }
 
 __kernel void lCountZero(const long n,
-                        __global const long *vec,
-                        __local  long *psum,
-                        __global long *count)
+                         __global const long *vec,
+                         __local  long *psum,
+                         __global long *count)
 {
     uint gBase = get_global_id(0);
     uint gSize = get_global_size(0);
 
+    if(0 == gBase) *count = 0;
+
     for(long i = gBase; i < n; i += gSize)
     {
-        psum[gBase] += isequal(vec[i], 0.0);
+        atom_add((__global long *) count, (long) isnotequal(vec[i], 0.0));
+    
     }
-
-    uint j = 65 - clz(gSize);
-    uint k = gSize - 1;
-    for(uint i = gBase; i < j; ++i)
-    {
-        k = (k >> 1) + 1;
-        if(i < k)
-        {
-            uint idx = i << 1;
-            psum[idx] += psum[idx + 1];
-        }
-    }
-
-    if(gBase == 0) *count = psum[0];
     return;
+    /*
+    // Clear psum
+    psum[gBase] = 0;
+    for(long i = gBase; i < n; i += gSize)
+    {
+        psum[gBase] += isnotequal(vec[i], 0.0);
+        printf("psum[%d] = %d\n", gBase, psum[gBase]);
+    }
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    uint size = min((long) gSize, n);
+    for(uint i = size / 2; i > 1; i >>= 1)
+    {
+        if(gBase < i)
+        {
+            printf("psum[%d] += psum[%d + %d];\n", gBase, gBase, i);
+            printf("%d += %d\n", psum[gBase], psum[gBase + i]);
+            psum[gBase] += psum[gBase + i];
+        }
+        barrier(CLK_LOCAL_MEM_FENCE);
+    }
+
+    if(gBase == 0) *count = psum[0] + psum[1];
+    */
 }
 
 __kernel void dCountZero(const long n,
@@ -106,23 +131,38 @@ __kernel void dCountZero(const long n,
     uint gBase = get_global_id(0);
     uint gSize = get_global_size(0);
 
+    if(0 == gBase) *count = 0;
+
     for(long i = gBase; i < n; i += gSize)
     {
-        psum[gBase] += isequal(vec[i], 0.0);
+        atom_add((__global long *) count, (long) isnotequal(vec[i], 0.0));
     }
+    return;
+}
 
-    uint j = 65 - clz(gSize);
-    uint k = gSize - 1;
-    for(uint i = gBase; i < j; ++i)
+__kernel void setValues(const long dim,
+                        __global const double *vec,
+                        const long n,
+                        __global long *count,
+                        __global long *rowIdx,
+                        __global double *values)
+{
+    uint gBase = get_global_id(0);
+    uint gSize = get_global_size(0);
+
+    if(0 == gBase) *count = 0;
+
+    for(long i = gBase; i < dim; i += gSize)
     {
-        k = (k >> 1) + 1;
-        if(i < k)
+        if(*count == n) return;
+        if(isnotequal(vec[i], 0.0))
         {
-            uint idx = i << 1;
-            psum[idx] += psum[idx + 1];
+            rowIdx[*count] = i;
+            values[*count] = vec[i];
+            ++(*count);
         }
+        barrier(CLK_GLOBAL_MEM_FENCE);
     }
 
-    if(gBase == 0) *count = psum[0];
     return;
 }

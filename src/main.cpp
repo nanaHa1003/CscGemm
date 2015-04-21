@@ -122,6 +122,8 @@ int main(int argc, char **argv)
     auto stat = clCscGemm(A, B, C);
 #endif
 
+    printCscMatrix(C);
+
     if(stat && checkResult(A, B, C))
     {
         std::cout << "Success" << std::endl;
